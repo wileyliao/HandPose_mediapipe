@@ -1,6 +1,7 @@
 import cv2
 import mediapipe as mp
 import math
+from collections import deque
 
 mp_drawing = mp.solutions.drawing_utils
 mp_drawing_styles = mp.solutions.drawing_styles
@@ -101,16 +102,19 @@ cap = cv2.VideoCapture(0)            # 讀取攝影機
 fontFace = cv2.FONT_HERSHEY_SIMPLEX  # 印出文字的字型
 lineType = cv2.LINE_AA               # 印出文字的邊框
 
+# 設置一個 buffer 用於記錄手勢
+gesture_buffer = deque(maxlen=15)  # 最大緩衝區大小為 10
+
 # mediapipe 啟用偵測手掌
 with mp_hands.Hands(
     model_complexity=0,
-    min_detection_confidence=0.5,
-    min_tracking_confidence=0.5) as hands:
+    min_detection_confidence=0.8,
+    min_tracking_confidence=0.8) as hands:
 
     if not cap.isOpened():
         print("Cannot open camera")
         exit()
-    w, h = 1600, 900                                  # 影像尺寸
+    w, h = 1280, 720                                  # 影像尺寸
     while True:
         ret, img = cap.read()
         img = cv2.resize(img, (w,h))                 # 縮小尺寸，加快處理效率
@@ -130,11 +134,23 @@ with mp_hands.Hands(
                 if finger_points:
                     finger_angle = hand_angle(finger_points) # 計算手指角度，回傳長度為 5 的串列
                     #print(finger_angle)                     # 印出角度 ( 有需要就開啟註解 )
-                    text = hand_pos(finger_angle)            # 取得手勢所回傳的內容
+                    text = hand_pos(finger_angle)
+
+                    # 將當前手勢加入緩衝區
+                    gesture_buffer.append(text)
+                    # 檢查緩衝區是否有 10 次相同的手勢
+                    if len(gesture_buffer) == 15 and len(set(gesture_buffer)) == 1:
+
+                        print(f"Detected repeated gesture: {gesture_buffer[0]}")
+                        gesture_buffer.clear()  # 清空緩衝區
+
+
+                    # print(text)# 取得手勢所回傳的內容
                     cv2.putText(img, f'order: {text}', (30,120), fontFace, 5, (0,255,0), 5, lineType) # 印出文字
 
         cv2.imshow('pose', img)
         if cv2.waitKey(5) == ord('q'):
             break
+
 cap.release()
 cv2.destroyAllWindows()
